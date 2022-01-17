@@ -16,14 +16,82 @@ int yylex (void);
 
 %%
 
-program: eval
+program: declaration* TOKEN_EOF;
+
+declaration: classDecl
+| funDecl
+| varDecl
+| statement
 ;
 
-eval: term
+classDecl: "class" ( "<" TOKEN_IDENTIFIER)? "{" function* "}";
+
+funDecl: "func" function;
+
+varDecl: "var" TOKEN_IDENTIFIER ( "=" expression)? ";";
+
+statement: exprStmt
+| forStmt
+| ifStmt
+| printStmt
+| returnStmt
+| whileStmt
+| block
 ;
 
-term: TOKEN_NUMBER
+exprStmt: expression ";";
+
+forStmt: "for" "(" ( varDecl | exprStmt | ";") expression? ";" expression? ")" statement;
+
+ifStmt: "if" "(" expression ")" statement ( "else" statement )? ;
+
+printStmt: "print" expression ";" ;
+
+returnStmt: "return" expression? ";" ;
+
+whileStmt: "while" "(" expression ")" statement ;
+
+block: "{" declaration* "}";
+
+expression: assignment;
+
+assignment: ( call ".")? TOKEN_IDENTIFER "=" assignment 
+| logic_or
 ;
+
+logic_or: logic_and ( "or" logic_and )* ;
+
+logic_and: equality ( "and" equality )* ;
+
+equality: comparison ( ( "!=" | "==") comparison )* ;
+
+comparison: term (( ">" | ">=" | "<" | "<=") term)* ;
+
+term: factor ( ( "-" | "+") factor)* ;
+
+factor: unary ( ( "/" | "*" ) unary )* ;
+
+unary: ("!" | "-" ) unary | call;
+
+call: primary ( "(" arguments ? ")" | "." TOKEN_IDENTIFIER )*;
+
+primary: TOKEN_TRUE 
+| TOKEN_FALSE 
+| TOKEN_NIL 
+| TOKEN_THIS 
+| TOKEN_NUMBER 
+| TOKEN_STRING 
+| TOKEN_IDENTIFIER 
+| "(" expression ")" 
+| TOKEN_SUPER "." TOKEN_IDENTIFIER
+;
+
+function: TOKEN_IDENTIFIER "(" parameters? ")" block;
+
+parameters: TOKEN_IDENTIFIER ( "," TOKEN_IDENTIFIER )* ;
+
+arguments: expression ( "," expression )* ;
+
 
 %%
 
