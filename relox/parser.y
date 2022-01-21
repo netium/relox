@@ -16,7 +16,7 @@ int yylex (void);
 
 %%
 
-program: declaration* TOKEN_EOF;
+statements: statements statement TOKEN_EOF;
 
 declaration: classDecl
 | funDecl
@@ -24,11 +24,13 @@ declaration: classDecl
 | statement
 ;
 
-classDecl: "class" ( "<" TOKEN_IDENTIFIER)? "{" function* "}";
+classDecl: 'class' ( TOKEN_LESS TOKEN_IDENTIFIER)? '{' function* '}';
 
-funDecl: "func" function;
+funDecl: TOKEN_FUN function;
 
-varDecl: "var" TOKEN_IDENTIFIER ( "=" expression)? ";";
+varDecl: 'var' TOKEN_IDENTIFIER ';'
+| 'var' TOKEN_IDENTIFIER '=' expression ';'
+;
 
 statement: exprStmt
 | forStmt
@@ -39,41 +41,69 @@ statement: exprStmt
 | block
 ;
 
-exprStmt: expression ";";
+exprStmt: expression ';';
 
-forStmt: "for" "(" ( varDecl | exprStmt | ";") expression? ";" expression? ")" statement;
+forStmt: 'for' '(' ( varDecl | exprStmt | ';') expression? ";" expression? ')' statement;
 
-ifStmt: "if" "(" expression ")" statement ( "else" statement )? ;
+ifStmt: 
+'if' '(' expression ')' statement
+|'if' '(' expression ')' statement 'else' statement 
+;
 
-printStmt: "print" expression ";" ;
+printStmt: 'print' expression ';' ;
 
-returnStmt: "return" expression? ";" ;
+returnStmt: 'return' ';'
+| 'return' expression ';' 
+;
 
-whileStmt: "while" "(" expression ")" statement ;
+whileStmt: TOKEN_WHILE TOKEN_LEFT_PAREN expression TOKEN_RIGHT_PAREN statement ;
 
-block: "{" declaration* "}";
+block: TOKEN_LEFT_BRACE declaration* TOKEN_RIGHT_BRACE;
 
 expression: assignment;
 
-assignment: ( call ".")? TOKEN_IDENTIFER "=" assignment 
+assignment:
+call '.' TOKEN_IDENTIFIER '=' assignment
+ TOKEN_IDENTIFIER '=' assignment 
 | logic_or
 ;
 
-logic_or: logic_and ( "or" logic_and )* ;
+logic_or: logic_and
+| logic_or '||' logic_and
+;
 
-logic_and: equality ( "and" equality )* ;
+logic_and: equality
+| logic_and '&&' equality
+;
 
-equality: comparison ( ( "!=" | "==") comparison )* ;
+equality: comparison
+| equality '!=' comparison
+| equality '==' comparison
+;
 
-comparison: term (( ">" | ">=" | "<" | "<=") term)* ;
+comparison: term 
+| term '>' term
+| term '>=' term
+| term '<' term
+| term '<=' term
+;
 
-term: factor ( ( "-" | "+") factor)* ;
+term: factor 
+| term '+' factor
+| term '-' factor
+;
 
-factor: unary ( ( "/" | "*" ) unary )* ;
+factor: unary
+| factor TOKEN_SLASH unary
+| factor TOKEN_STAR unary
+;
 
-unary: ("!" | "-" ) unary | call;
+unary: TOKEN_BANG unary
+| TOKEN_MINUS unary
+| call
+;
 
-call: primary ( "(" arguments ? ")" | "." TOKEN_IDENTIFIER )*;
+call: primary ( '(' arguments ? ')' | '.' TOKEN_IDENTIFIER )*;
 
 primary: TOKEN_TRUE 
 | TOKEN_FALSE 
@@ -82,15 +112,21 @@ primary: TOKEN_TRUE
 | TOKEN_NUMBER 
 | TOKEN_STRING 
 | TOKEN_IDENTIFIER 
-| "(" expression ")" 
-| TOKEN_SUPER "." TOKEN_IDENTIFIER
+| TOKEN_LEFT_PAREN expression TOKEN_RIGHT_PAREN
+| TOKEN_SUPER TOKEN_DOT TOKEN_IDENTIFIER
 ;
 
-function: TOKEN_IDENTIFIER "(" parameters? ")" block;
+function: TOKEN_IDENTIFIER '(' parameters ')' block
+TOKEN_IDENTIFIER;
 
-parameters: TOKEN_IDENTIFIER ( "," TOKEN_IDENTIFIER )* ;
+parameters: 
+| TOKEN_IDENTIFIER
+| parameters ',' TOKEN_IDENTIFIER
+;
 
-arguments: expression ( "," expression )* ;
+arguments: expression
+| arguments ',' expression
+;
 
 
 %%
