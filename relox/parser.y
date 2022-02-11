@@ -1,22 +1,31 @@
+
 %{
 #include <stdio.h>
+#include "parser_helper.h"
 
-void yyerror(char *s);
 int yylex (void);
 
 %}
 
+%union {
+	double value;
+	char id[256];
+}
+
 %token TOKEN_LEFT_PAREN TOKEN_RIGHT_PAREN TOKEN_LEFT_BRACE TOKEN_RIGHT_BRACE
 %token TOKEN_COMMA TOKEN_DOT TOKEN_MINUS TOKEN_PLUS TOKEN_SEMICOLON TOKEN_SLASH TOKEN_STAR
 %token TOKEN_BANG TOKEN_BANG_EQUAL TOKEN_EQUAL TOKEN_EQUAL_EQUAL TOKEN_GREATER TOKEN_GREATER_EQUAL
-%token TOKEN_LESS TOKEN_LESS_EQUAL TOKEN_IDENTIFIER TOKEN_STRING TOKEN_NUMBER
+%token TOKEN_LESS TOKEN_LESS_EQUAL TOKEN_STRING TOKEN_NUMBER
 %token TOKEN_AND TOKEN_CLASS TOKEN_ELSE TOKEN_FALSE TOKEN_FOR TOKEN_FUN TOKEN_IF TOKEN_NIL TOKEN_OR
 %token TOKEN_PRINT TOKEN_RETURN TOKEN_SUPER TOKEN_THIS TOKEN_TRUE TOKEN_VAR TOKEN_WHILE
 %token TOKEN_ERROR TOKEN_EOF
+%token <id> TOKEN_IDENTIFIER
 
+%type <value> statements declaration classDecl
 %%
 
-statements: statements statement TOKEN_EOF;
+statements: TOKEN_EOF
+| statements statement TOKEN_EOF;
 
 declaration: classDecl
 | funDecl
@@ -24,12 +33,18 @@ declaration: classDecl
 | statement
 ;
 
-classDecl: 'class' ( TOKEN_LESS TOKEN_IDENTIFIER)? '{' function* '}';
+classDecl: TOKEN_CLASS TOKEN_IDENTIFIER '{' functions '}'		{printf ("%s\n", $2); strcmp($2, $$);}
+| TOKEN_CLASS '<' TOKEN_IDENTIFIER '{' functions '}'
+;
+
+functions: 
+| function functions
+;
 
 funDecl: TOKEN_FUN function;
 
-varDecl: 'var' TOKEN_IDENTIFIER ';'
-| 'var' TOKEN_IDENTIFIER '=' expression ';'
+varDecl: TOKEN_VAR TOKEN_IDENTIFIER ';'
+| TOKEN_VAR TOKEN_IDENTIFIER '=' expression ';'
 ;
 
 statement: exprStmt
@@ -43,22 +58,39 @@ statement: exprStmt
 
 exprStmt: expression ';';
 
-forStmt: 'for' '(' ( varDecl | exprStmt | ';') expression? ";" expression? ')' statement;
+forStmt: TOKEN_FOR '(' forInit forCondExpr ';' forIterExpr ')' statement;
+
+forInit: varDecl
+| exprStmt
+| ';'
+;
+
+forCondExpr: 
+| expression
+;
+
+forIterExpr:
+| expression
+;
 
 ifStmt: 
-'if' '(' expression ')' statement
-|'if' '(' expression ')' statement 'else' statement 
+TOKEN_IF '(' expression ')' statement
+| TOKEN_IF'(' expression ')' statement TOKEN_ELSE statement 
 ;
 
-printStmt: 'print' expression ';' ;
+printStmt: TOKEN_PRINT expression ';' ;
 
-returnStmt: 'return' ';'
-| 'return' expression ';' 
+returnStmt: TOKEN_RETURN ';'
+| TOKEN_RETURN expression ';' 
 ;
 
-whileStmt: TOKEN_WHILE TOKEN_LEFT_PAREN expression TOKEN_RIGHT_PAREN statement ;
+whileStmt: TOKEN_WHILE '(' expression ')' statement ;
 
-block: TOKEN_LEFT_BRACE declaration* TOKEN_RIGHT_BRACE;
+block: '{' declarations '}' ;
+
+declarations:
+| declaration declarations
+;
 
 expression: assignment;
 
@@ -69,23 +101,23 @@ call '.' TOKEN_IDENTIFIER '=' assignment
 ;
 
 logic_or: logic_and
-| logic_or '||' logic_and
+| logic_or TOKEN_OR logic_and
 ;
 
 logic_and: equality
-| logic_and '&&' equality
+| logic_and TOKEN_AND equality
 ;
 
 equality: comparison
-| equality '!=' comparison
-| equality '==' comparison
+| equality TOKEN_BANG_EQUAL comparison
+| equality TOKEN_EQUAL_EQUAL comparison
 ;
 
 comparison: term 
 | term '>' term
-| term '>=' term
+| term TOKEN_GREATER_EQUAL term
 | term '<' term
-| term '<=' term
+| term TOKEN_LESS_EQUAL term
 ;
 
 term: factor 
@@ -94,16 +126,24 @@ term: factor
 ;
 
 factor: unary
-| factor TOKEN_SLASH unary
-| factor TOKEN_STAR unary
+| factor '/' unary
+| factor '*' unary
 ;
 
-unary: TOKEN_BANG unary
-| TOKEN_MINUS unary
+unary: '!' unary
+| '-' unary
 | call
 ;
 
-call: primary ( '(' arguments ? ')' | '.' TOKEN_IDENTIFIER )*;
+call: primary
+| functionCall
+| referenceCall
+;
+
+functionCall: call '(' arguments ')';
+
+referenceCall: call '.' TOKEN_IDENTIFIER;
+
 
 primary: TOKEN_TRUE 
 | TOKEN_FALSE 
@@ -117,14 +157,16 @@ primary: TOKEN_TRUE
 ;
 
 function: TOKEN_IDENTIFIER '(' parameters ')' block
-TOKEN_IDENTIFIER;
+| TOKEN_IDENTIFIER
+;
 
 parameters: 
 | TOKEN_IDENTIFIER
 | parameters ',' TOKEN_IDENTIFIER
 ;
 
-arguments: expression
+arguments:
+| expression
 | arguments ',' expression
 ;
 
@@ -133,8 +175,4 @@ arguments: expression
 
 void main(int argc, char *argv[]) {
 	yyparse();
-}
-
-void yyerror(char *s) {
-	fprintf(stderr, "error: %s\n", s);
 }
