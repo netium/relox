@@ -37,6 +37,7 @@
 "<"	{ printf("LESS\n"); return yytext[0]; }
 "."	{ printf("DOT\n"); return yytext[0]; }
 ";"	{ printf("SEMICOLON\n"); return yytext[0]; }
+":" { printf("COLON\n"); return yytext[0]; }
 ","	{ printf("COMMA\n"); return yytext[0]; }
 [a-zA-Z_][a-zA-Z0-9_]*	{ printf("IDENTIFIER %s\n", yytext); return TOKEN_IDENTIFIER; }
 [0-9]+(\.[0-9]+)?	{ printf("NUMBER %s\n", yytext); return TOKEN_NUMBER; }

@@ -100,7 +100,7 @@ expression: assignment;
 
 assignment:
 call '.' TOKEN_IDENTIFIER '=' assignment
- TOKEN_IDENTIFIER '=' assignment 
+| TOKEN_IDENTIFIER '=' assignment 
 | logic_or
 ;
 
