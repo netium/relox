@@ -22,6 +22,10 @@ int yylex (void);
 %token TOKEN_ERROR TOKEN_EOF
 %token <id> TOKEN_IDENTIFIER
 
+%left TOKEN_AND TOKEN_OR
+%left '+' '-'
+%left '*' '/'
+
 %start program
 
 %%
