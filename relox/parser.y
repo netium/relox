@@ -38,7 +38,7 @@ declaration: classDecl
 ;
 
 classDecl: TOKEN_CLASS TOKEN_IDENTIFIER '{' functions '}'	
-| TOKEN_CLASS ':' TOKEN_IDENTIFIER '{' functions '}'
+| TOKEN_CLASS TOKEN_IDENTIFIER ':' TOKEN_IDENTIFIER '{' functions '}'
 ;
 
 functions: 
