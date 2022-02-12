@@ -22,9 +22,11 @@ int yylex (void);
 %token TOKEN_ERROR TOKEN_EOF
 %token <id> TOKEN_IDENTIFIER
 
-%start statements
+%start program
 
 %%
+
+program: declarations;
 
 statements: 
 | statement statements;
@@ -36,7 +38,7 @@ declaration: classDecl
 ;
 
 classDecl: TOKEN_CLASS TOKEN_IDENTIFIER '{' functions '}'	
-| TOKEN_CLASS '<' TOKEN_IDENTIFIER '{' functions '}'
+| TOKEN_CLASS ':' TOKEN_IDENTIFIER '{' functions '}'
 ;
 
 functions: 
