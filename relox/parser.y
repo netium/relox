@@ -1,6 +1,7 @@
 
 %{
 #include <stdio.h>
+#include <string.h>
 #include "parser_helper.h"
 
 int yylex (void);
@@ -21,11 +22,12 @@ int yylex (void);
 %token TOKEN_ERROR TOKEN_EOF
 %token <id> TOKEN_IDENTIFIER
 
-%type <value> statements declaration classDecl
+%start statements
+
 %%
 
-statements: TOKEN_EOF
-| statements statement TOKEN_EOF;
+statements: 
+| statement statements;
 
 declaration: classDecl
 | funDecl
@@ -33,7 +35,7 @@ declaration: classDecl
 | statement
 ;
 
-classDecl: TOKEN_CLASS TOKEN_IDENTIFIER '{' functions '}'		{printf ("%s\n", $2); strcmp($2, $$);}
+classDecl: TOKEN_CLASS TOKEN_IDENTIFIER '{' functions '}'	
 | TOKEN_CLASS '<' TOKEN_IDENTIFIER '{' functions '}'
 ;
 

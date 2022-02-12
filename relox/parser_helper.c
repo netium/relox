@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include "parser_helper.h"
 
-void yyerror(char *s, ...) {
+void yyerror(const char *s, ...) {
 
     va_list ap;
     va_start(ap, s);

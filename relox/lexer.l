@@ -45,6 +45,7 @@
 \/\/[^\n]*/\n	{ printf("COMMENT %s", yytext); }
 \"([^"]|(\\\.))*\"	{ printf("STRING %s", yytext); }
 [ \t\r]	{}
+\n	{ yylineno++; }
 .	{ printf("ERROR %s \n", yytext); }
 
 %%
