@@ -114,18 +114,18 @@ call '.' TOKEN_IDENTIFIER '=' assignment
 
 expr: expr TOKEN_OR expr
 | expr TOKEN_AND expr
-| expr TOKEN_BANG_EQUAL expr
-| expr TOKEN_EQUAL_EQUAL expr
-| expr '>' expr
-| expr TOKEN_GREATER_EQUAL expr
-| expr '<' expr
-| expr TOKEN_LESS_EQUAL expr
-| expr '+' expr
-| expr '-' expr
-| expr '*' expr
-| expr '/' expr
-| '!' expr
-| '-' expr
+| expr TOKEN_BANG_EQUAL expr { emitBytes(OP_EQUAL, OP_NOT); }
+| expr TOKEN_EQUAL_EQUAL expr { emitByte(OP_EQUAL); }
+| expr '>' expr { emitByte(OP_GREATER); }
+| expr TOKEN_GREATER_EQUAL expr { emitBytes(OP_LESS, OP_NOT); }
+| expr '<' expr { emitByte(OP_LESS); }
+| expr TOKEN_LESS_EQUAL expr { emitBytes(OP_GREATER, OP_NOT); }
+| expr '+' expr { emitByte(OP_ADD); }
+| expr '-' expr { emitByte(OP_SUBTRACT); }
+| expr '*' expr { emitByte(OP_MULTIPLY); }
+| expr '/' expr { emitByte(OP_DIVIDE); }
+| '!' expr { emitByte(OP_NOT); }
+| '-' expr { emitByte(OP_NEGATE); }
 | '(' expr ')'
 | call
 ; 
@@ -140,9 +140,8 @@ primary: TOKEN_TRUE
 | TOKEN_NIL 
 | TOKEN_THIS 
 | TOKEN_NUMBER 
-| TOKEN_STRING 
-| TOKEN_IDENTIFIER 
-| TOKEN_LEFT_PAREN expression TOKEN_RIGHT_PAREN
+| TOKEN_STRING 	{ emitConstant(OBJ_VAL(copyString(yytext, strlen(yytext)))); }
+| TOKEN_IDENTIFIER { emitConstant(OBJ_VAL(copyString(yytext, strlen(yytext)))); } 
 | TOKEN_SUPER TOKEN_DOT TOKEN_IDENTIFIER
 ;
 
