@@ -2,7 +2,22 @@
 %{
 #include <stdio.h>
 #include <string.h>
+
+#include "common.h"
+#include "memory.h"
+
+#ifdef DEBUG_PRINT_CODE
+#include "debug.h"
+#endif
+
 #include "parser_helper.h"
+
+void emitByte(uint8_t byte);
+void emitBytes(uint8_t byte1, uint8_t byte2);
+void emitConstant(Value value);
+uint8_t makeConstant(Value value);
+void emitReturn();
+int emitJump(uint8_t instruction);
 
 int yylex (void);
 
@@ -115,20 +130,20 @@ call '.' TOKEN_IDENTIFIER '=' assignment
 | expr 
 ;
 
-expr: expr TOKEN_OR expr
+expr: expr TOKEN_OR expr	
 | expr TOKEN_AND expr
-| expr TOKEN_BANG_EQUAL expr 
-| expr TOKEN_EQUAL_EQUAL expr 
-| expr '>' expr 
-| expr TOKEN_GREATER_EQUAL expr 
-| expr '<' expr 
-| expr TOKEN_LESS_EQUAL expr 
-| expr '+' expr 
-| expr '-' expr 
-| expr '*' expr 
-| expr '/' expr 
-| '!' expr 
-| '-' expr %prec TOKEN_UMINUS 
+| expr TOKEN_BANG_EQUAL expr	{ emitBytes(OP_EQUAL, OP_NOT); }
+| expr TOKEN_EQUAL_EQUAL expr	{ emitByte(OP_EQUAL); }
+| expr '>' expr			{ emitByte(OP_GREATER); }
+| expr TOKEN_GREATER_EQUAL expr	{ emitBytes(OP_LESS, OP_NOT); } 
+| expr '<' expr			{ emitByte(OP_LESS); } 
+| expr TOKEN_LESS_EQUAL expr	{ emitBytes(OP_GREATER, OP_NOT); } 
+| expr '+' expr			{ emitByte(OP_ADD); } 
+| expr '-' expr			{ emitByte(OP_SUBTRACT); } 
+| expr '*' expr			{ emitByte(OP_MULTIPLY); } 
+| expr '/' expr			{ emitByte(OP_DIVIDE); } 
+| '!' expr			{ emitByte(OP_NOT); } 
+| '-' expr %prec TOKEN_UMINUS	{ emitByte(OP_NEGATE); } 
 | '(' expr ')'
 | call
 ; 
@@ -138,12 +153,12 @@ call: primary
 | call '.' TOKEN_IDENTIFIER
 ;
 
-primary: TOKEN_TRUE 
-| TOKEN_FALSE 
-| TOKEN_NIL 
+primary: TOKEN_TRUE		{ emitByte(OP_TRUE); } 
+| TOKEN_FALSE			{ emitByte(OP_FALSE); }
+| TOKEN_NIL			{ emitByte(OP_NIL); } 
 | TOKEN_THIS 
-| TOKEN_NUMBER 
-| TOKEN_STRING 	
+| TOKEN_NUMBER			{ double value = strtod($1, NULL); emitConstant(NUMBER_VAL(value)); } 
+| TOKEN_STRING			{ emitConstant(OBJ_VAL(copyString($1, strlen($1)))); }	
 | TOKEN_IDENTIFIER 
 | TOKEN_SUPER TOKEN_DOT TOKEN_IDENTIFIER
 ;

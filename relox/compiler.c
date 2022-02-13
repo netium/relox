@@ -155,11 +155,11 @@ static bool match(TokenType type) {
 	return true;
 }
 
-static void emitByte(uint8_t byte) {
+void emitByte(uint8_t byte) {
 	writeChunk(currentChunk(), byte, parser.previous.line);
 }
 
-static void emitBytes(uint8_t byte1, uint8_t byte2) {
+void emitBytes(uint8_t byte1, uint8_t byte2) {
 	emitByte(byte1);
 	emitByte(byte2);
 }
@@ -174,14 +174,14 @@ static void emitLoop(int loopStart) {
 	emitByte(offset & 0xff);
 }
 
-static int emitJump(uint8_t instruction) {
+int emitJump(uint8_t instruction) {
 	emitByte(instruction);
 	emitByte(0xff);
 	emitByte(0xff);
 	return currentChunk()->count - 2;
 }
 
-static void emitReturn() {
+void emitReturn() {
 	if (current->type == TYPE_INITIALIZER) {
 		emitBytes(OP_GET_LOCAL, 0);
 	}
@@ -191,7 +191,7 @@ static void emitReturn() {
 	emitByte(OP_RETURN);
 }
 
-static uint8_t makeConstant(Value value) {
+uint8_t makeConstant(Value value) {
 	int constant = addConstant(currentChunk(), value);
 	if (constant > UINT8_MAX) {
 		error("Too many constants in one chunk.");
@@ -201,7 +201,7 @@ static uint8_t makeConstant(Value value) {
 	return (uint8_t)constant;
 }
 
-static void emitConstant(Value value) {
+void emitConstant(Value value) {
 	emitBytes(OP_CONSTANT, makeConstant(value));
 }
 
