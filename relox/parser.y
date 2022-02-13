@@ -22,9 +22,13 @@ int yylex (void);
 %token TOKEN_ERROR TOKEN_EOF
 %token <id> TOKEN_IDENTIFIER
 
-%left TOKEN_AND TOKEN_OR
+%right '='
+%nonassoc '>' '<' TOKEN_EQUAL_EQUAL TOKEN_BANG_EQUAL TOKEN_GREATER_EQUAL TOKEN_LESS_EQUAL
+%left TOKEN_OR
+%left TOKEN_AND
 %left '+' '-'
 %left '*' '/'
+%right UMINUS '!'
 
 %start program
 
@@ -105,53 +109,31 @@ expression: assignment;
 assignment:
 call '.' TOKEN_IDENTIFIER '=' assignment
 | TOKEN_IDENTIFIER '=' assignment 
-| logic_or
+| expr 
 ;
 
-logic_or: logic_and
-| logic_or TOKEN_OR logic_and
-;
-
-logic_and: equality
-| logic_and TOKEN_AND equality
-;
-
-equality: comparison
-| equality TOKEN_BANG_EQUAL comparison
-| equality TOKEN_EQUAL_EQUAL comparison
-;
-
-comparison: term 
-| term '>' term
-| term TOKEN_GREATER_EQUAL term
-| term '<' term
-| term TOKEN_LESS_EQUAL term
-;
-
-term: factor 
-| term '+' factor
-| term '-' factor
-;
-
-factor: unary
-| factor '/' unary
-| factor '*' unary
-;
-
-unary: '!' unary
-| '-' unary
+expr: expr TOKEN_OR expr
+| expr TOKEN_AND expr
+| expr TOKEN_BANG_EQUAL expr
+| expr TOKEN_EQUAL_EQUAL expr
+| expr '>' expr
+| expr TOKEN_GREATER_EQUAL expr
+| expr '<' expr
+| expr TOKEN_LESS_EQUAL expr
+| expr '+' expr
+| expr '-' expr
+| expr '*' expr
+| expr '/' expr
+| '!' expr
+| '-' expr
+| '(' expr ')'
 | call
-;
+; 
 
 call: primary
-| functionCall
-| referenceCall
+| call '(' arguments ')' 
+| call '.' TOKEN_IDENTIFIER
 ;
-
-functionCall: call '(' arguments ')';
-
-referenceCall: call '.' TOKEN_IDENTIFIER;
-
 
 primary: TOKEN_TRUE 
 | TOKEN_FALSE 
@@ -181,6 +163,8 @@ arguments:
 
 %%
 
+/*
 void main(int argc, char *argv[]) {
 	yyparse();
 }
+*/

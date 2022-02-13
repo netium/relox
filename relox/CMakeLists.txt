@@ -16,11 +16,15 @@ FLEX_TARGET(ReloxLexer lexer.l ${CMAKE_CURRENT_BINARY_DIR}/lexer.c DEFINES_FILE 
 ADD_FLEX_BISON_DEPENDENCY(ReloxLexer ReloxParser)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
+include_directories("include")
+
+file(GLOB relox_SRC CONFIGURE_DEPENDS "*.h" "*.c")
+file(GLOB relox_INCLUDES_HEADER_SRC CONFIGURE_DEPENDS "include/*.h")
 
 # Add source to this project's executable.
 add_executable (relox
- "parser_helper.c"
- "parser_helper.h"
+ ${relox_SRC}
+ ${relox_INCLUDES_HEADER_SRC}
  ${BISON_ReloxParser_OUTPUTS}
  ${FLEX_ReloxLexer_OUTPUTS}
  )
