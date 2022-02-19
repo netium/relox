@@ -1,6 +1,7 @@
 
 %{
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "common.h"
@@ -28,10 +29,8 @@ int yylex (void);
 	char literal[256];
 }
 
-%token TOKEN_LEFT_PAREN TOKEN_RIGHT_PAREN TOKEN_LEFT_BRACE TOKEN_RIGHT_BRACE
-%token TOKEN_COMMA TOKEN_DOT TOKEN_MINUS TOKEN_PLUS TOKEN_SEMICOLON TOKEN_SLASH TOKEN_STAR
-%token TOKEN_BANG TOKEN_BANG_EQUAL TOKEN_EQUAL TOKEN_EQUAL_EQUAL TOKEN_GREATER TOKEN_GREATER_EQUAL
-%token TOKEN_LESS TOKEN_LESS_EQUAL
+%token TOKEN_BANG_EQUAL TOKEN_EQUAL_EQUAL TOKEN_GREATER_EQUAL
+%token TOKEN_LESS_EQUAL
 %token TOKEN_AND TOKEN_CLASS TOKEN_ELSE TOKEN_FALSE TOKEN_FOR TOKEN_FUN TOKEN_IF TOKEN_NIL TOKEN_OR
 %token TOKEN_PRINT TOKEN_RETURN TOKEN_SUPER TOKEN_THIS TOKEN_TRUE TOKEN_VAR TOKEN_WHILE
 %token TOKEN_ERROR TOKEN_EOF
@@ -39,6 +38,8 @@ int yylex (void);
 %token <literal> TOKEN_IDENTIFIER
 %token <literal> TOKEN_STRING
 %token <literal> TOKEN_NUMBER
+
+%nterm program
 
 %right '='
 %nonassoc '>' '<' TOKEN_EQUAL_EQUAL TOKEN_BANG_EQUAL TOKEN_GREATER_EQUAL TOKEN_LESS_EQUAL
@@ -54,9 +55,6 @@ int yylex (void);
 
 program: declarations ;
 
-statements: 
-| statement statements;
-
 declaration: classDecl
 | funDecl
 | varDecl
@@ -68,6 +66,7 @@ classDecl: TOKEN_CLASS TOKEN_IDENTIFIER '{' functions '}'
 ;
 
 functions: 
+%empty
 | funDecl functions
 ;
 
@@ -96,10 +95,12 @@ forInit: varDecl
 ;
 
 forCondExpr: 
+%empty
 | expression
 ;
 
 forIterExpr:
+%empty
 | expression
 ;
 
@@ -119,7 +120,8 @@ whileStmt: TOKEN_WHILE '(' expression ')' statement ;
 block: '{' declarations '}' ;
 
 declarations:
-| declaration declarations
+%empty
+| declarations declaration 
 ;
 
 expression: assignment;
@@ -160,7 +162,7 @@ primary: TOKEN_TRUE		{ emitByte(OP_TRUE); }
 | TOKEN_NUMBER			{ double value = strtod($1, NULL); emitConstant(NUMBER_VAL(value)); } 
 | TOKEN_STRING			{ emitConstant(OBJ_VAL(copyString($1, strlen($1)))); }	
 | TOKEN_IDENTIFIER 
-| TOKEN_SUPER TOKEN_DOT TOKEN_IDENTIFIER
+| TOKEN_SUPER '.' TOKEN_IDENTIFIER
 ;
 
 function: TOKEN_IDENTIFIER '(' parameters ')' block
@@ -168,11 +170,13 @@ function: TOKEN_IDENTIFIER '(' parameters ')' block
 ;
 
 parameters: 
+%empty
 | TOKEN_IDENTIFIER
 | parameters ',' TOKEN_IDENTIFIER
 ;
 
 arguments:
+%empty
 | expression
 | arguments ',' expression
 ;
