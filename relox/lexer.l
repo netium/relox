@@ -40,7 +40,7 @@
 ":" { printf("COLON\n"); return yytext[0]; }
 ","	{ printf("COMMA\n"); return yytext[0]; }
 [a-zA-Z_][a-zA-Z0-9_]*	{ printf("IDENTIFIER %s\n", yytext);  strcpy(yylval.literal, yytext);  return TOKEN_IDENTIFIER; }
-[0-9]+(\.[0-9]+)?	{ printf("NUMBER %s\n", yytext); strcpy(yylval.literal, yytext); return TOKEN_NUMBER; }
+[0-9]+(\.[0-9]+)?	{ printf("NUMBER %s\n", yytext); yylval.number = strtod(yytext, NULL); return TOKEN_NUMBER; }
 "+"	{ printf("PLUS\n"); return yytext[0]; }
 "-"	{ printf("MINUS\n"); return yytext[0]; }
 \/\/[^\n]*/\n	{ printf("COMMENT %s", yytext); }

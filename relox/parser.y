@@ -14,21 +14,9 @@
 #include "parser_helper.h"
 }
 
-%code {
-
-void emitByte(uint8_t byte);
-void emitBytes(uint8_t byte1, uint8_t byte2);
-void emitConstant(Value value);
-uint8_t makeConstant(Value value);
-void emitReturn();
-int emitJump(uint8_t instruction);
-
-int yylex (void);
-
-}
-
 %union {
-	double value;
+	int code_offset; 
+	double number;
 	char literal[256];
 }
 
@@ -57,7 +45,7 @@ int yylex (void);
 %token UMINUS
 %token <literal> IDENTIFIER
 %token <literal> STRING
-%token <literal> NUMBER
+%token <number> NUMBER
 
 %nterm program
 
@@ -105,7 +93,8 @@ statement: exprStmt
 | block
 ;
 
-exprStmt: expression ';';
+exprStmt: expression ';' { emitByte(OP_POP); }
+;
 
 forStmt: "for" '(' forInit forCondExpr ';' forIterExpr ')' statement;
 
@@ -129,13 +118,35 @@ ifStmt:
 |"if" '(' expression ')' statement "else" statement 
 ;
 
-printStmt: "print" expression ';' ;
-
-returnStmt: "return" ';'
-| "return" expression ';' 
+printStmt: "print" expression ';' { emitByte(OP_PRINT); }
 ;
 
-whileStmt: "while" '(' expression ')' statement ;
+returnStmt: returnContextCheck "return" ';'	{ emitReturn(); }
+| returnContextCheck "return" {
+	if (current->type == TYPE_INITIALIZER) {
+		fprintf(yyo, "%s", "Cannot return a value from an initializer.");
+		YYABORT;
+	}
+} expression ';'	{ emitByte(OP_RETURN); }
+;
+
+returnContextCheck: %empty {
+	if (current->type == TYPE_SCRIPT) {
+		fprintf(yyo, "%s", "CAnnot return from top-level code.");
+		YYABORT;
+	}
+}
+
+whileStmt: "while" <code_offset>{
+	$loopStart = currentChunk()->count;
+}[loopStart] '(' expression ')' <code_offset>{
+	$exitJump = emitJump(OP_JUMP_IF_FALSE);
+}[exitJump] statement  {
+	emitLoop($loopStart);
+	patchJump($exitJump);
+	emitByte(OP_POP);
+}
+;
 
 block: '{' declarations '}'
 | error '}' { yyerrok; } ;
@@ -153,8 +164,9 @@ call '.' IDENTIFIER '=' assignment
 | expr 
 ;
 
-expr: expr "||" expr	
-| expr "&&" expr
+expr: 
+expr "||" expr		{}
+| expr "&&" expr	{}
 | expr "!=" expr	{ emitBytes(OP_EQUAL, OP_NOT); }
 | expr "==" expr	{ emitByte(OP_EQUAL); }
 | expr '>' expr			{ emitByte(OP_GREATER); }
@@ -167,7 +179,7 @@ expr: expr "||" expr
 | expr '/' expr			{ emitByte(OP_DIVIDE); } 
 | '!' expr			{ emitByte(OP_NOT); } 
 | '-' expr %prec UMINUS		{ emitByte(OP_NEGATE); } 
-| '(' expr ')'
+| '(' expr ')'			/* Do nothing */
 | call
 ; 
 
@@ -180,10 +192,10 @@ primary: "true" { emitByte(OP_TRUE); }
 | "false" { emitByte(OP_FALSE); }
 | "nil" { emitByte(OP_NIL); } 
 | "this"
-| NUMBER			{ double value = strtod($1, NULL); emitConstant(NUMBER_VAL(value)); } 
-| STRING			{ emitConstant(OBJ_VAL(copyString($1, strlen($1)))); }	
-| IDENTIFIER 
-| "super" '.' IDENTIFIER
+| NUMBER[number]			{ emitConstant(NUMBER_VAL($number); } 
+| STRING[string]			{ emitConstant(OBJ_VAL(copyString($string, strlen($string)))); }	
+| IDENTIFIER[id]
+| "super" '.' IDENTIFIER[id]
 ;
 
 function: IDENTIFIER '(' parameters ')' block
