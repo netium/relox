@@ -1,5 +1,5 @@
 
-%{
+%code {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +12,9 @@
 #endif
 
 #include "parser_helper.h"
+}
+
+%code {
 
 void emitByte(uint8_t byte);
 void emitBytes(uint8_t byte1, uint8_t byte2);
@@ -22,32 +25,49 @@ int emitJump(uint8_t instruction);
 
 int yylex (void);
 
-%}
+}
 
 %union {
 	double value;
 	char literal[256];
 }
 
-%token TOKEN_BANG_EQUAL TOKEN_EQUAL_EQUAL TOKEN_GREATER_EQUAL
-%token TOKEN_LESS_EQUAL
-%token TOKEN_AND TOKEN_CLASS TOKEN_ELSE TOKEN_FALSE TOKEN_FOR TOKEN_FUN TOKEN_IF TOKEN_NIL TOKEN_OR
-%token TOKEN_PRINT TOKEN_RETURN TOKEN_SUPER TOKEN_THIS TOKEN_TRUE TOKEN_VAR TOKEN_WHILE
-%token TOKEN_ERROR TOKEN_EOF
-%token TOKEN_UMINUS
-%token <literal> TOKEN_IDENTIFIER
-%token <literal> TOKEN_STRING
-%token <literal> TOKEN_NUMBER
+%define api.token.prefix {TOKEN_}
+
+%token BANG_EQUAL "!=" 
+%token EQUAL_EQUAL "=="
+%token GREATER_EQUAL ">="
+%token LESS_EQUAL "<="
+%token AND "&&"
+%token CLASS "class"
+%token ELSE "else" 
+%token FALSE "false"
+%token FOR "for"
+%token FUN "func"
+%token IF "if"
+%token NIL "nil"
+%token OR "||"
+%token PRINT "print"
+%token RETURN "return"
+%token SUPER "super" 
+%token THIS "this"
+%token TRUE 235 "true"
+%token VAR "var"
+%token WHILE "while"
+%token UMINUS
+%token <literal> IDENTIFIER
+%token <literal> STRING
+%token <literal> NUMBER
 
 %nterm program
 
 %right '='
-%nonassoc '>' '<' TOKEN_EQUAL_EQUAL TOKEN_BANG_EQUAL TOKEN_GREATER_EQUAL TOKEN_LESS_EQUAL
-%left TOKEN_OR
-%left TOKEN_AND
+%nonassoc '>' '<' "==" "!=" ">=" "<="
+%left "||"
+%left "&&"
 %left '+' '-'
 %left '*' '/'
-%left TOKEN_UMINUS '!'
+%left UMINUS '!'
 
 %start program
 
@@ -61,8 +81,8 @@ declaration: classDecl
 | statement
 ;
 
-classDecl: TOKEN_CLASS TOKEN_IDENTIFIER '{' functions '}'	
-| TOKEN_CLASS TOKEN_IDENTIFIER ':' TOKEN_IDENTIFIER '{' functions '}'
+classDecl: "class" IDENTIFIER '{' functions '}'	
+| "class" IDENTIFIER ':' IDENTIFIER '{' functions '}'
 ;
 
 functions: 
@@ -70,10 +90,10 @@ functions:
 | funDecl functions
 ;
 
-funDecl: TOKEN_FUN function;
+funDecl: "func" function;
 
-varDecl: TOKEN_VAR TOKEN_IDENTIFIER ';'
-| TOKEN_VAR TOKEN_IDENTIFIER '=' expression ';'
+varDecl: "var" IDENTIFIER ';'
+| "var" IDENTIFIER '=' expression ';'
 ;
 
 statement: exprStmt
@@ -87,7 +107,7 @@ statement: exprStmt
 
 exprStmt: expression ';';
 
-forStmt: TOKEN_FOR '(' forInit forCondExpr ';' forIterExpr ')' statement;
+forStmt: "for" '(' forInit forCondExpr ';' forIterExpr ')' statement;
 
 forInit: varDecl
 | exprStmt
@@ -105,19 +125,20 @@ forIterExpr:
 ;
 
 ifStmt: 
-TOKEN_IF '(' expression ')' statement
-| TOKEN_IF'(' expression ')' statement TOKEN_ELSE statement 
+"if" '(' expression ')' statement
+|"if" '(' expression ')' statement "else" statement 
 ;
 
-printStmt: TOKEN_PRINT expression ';' ;
+printStmt: "print" expression ';' ;
 
-returnStmt: TOKEN_RETURN ';'
-| TOKEN_RETURN expression ';' 
+returnStmt: "return" ';'
+| "return" expression ';' 
 ;
 
-whileStmt: TOKEN_WHILE '(' expression ')' statement ;
+whileStmt: "while" '(' expression ')' statement ;
 
-block: '{' declarations '}' ;
+block: '{' declarations '}'
+| error '}' { yyerrok; } ;
 
 declarations:
 %empty
@@ -127,52 +148,52 @@ declarations:
 expression: assignment;
 
 assignment:
-call '.' TOKEN_IDENTIFIER '=' assignment
-| TOKEN_IDENTIFIER '=' assignment 
+call '.' IDENTIFIER '=' assignment
+| IDENTIFIER '=' assignment 
 | expr 
 ;
 
-expr: expr TOKEN_OR expr	
-| expr TOKEN_AND expr
-| expr TOKEN_BANG_EQUAL expr	{ emitBytes(OP_EQUAL, OP_NOT); }
-| expr TOKEN_EQUAL_EQUAL expr	{ emitByte(OP_EQUAL); }
+expr: expr "||" expr	
+| expr "&&" expr
+| expr "!=" expr	{ emitBytes(OP_EQUAL, OP_NOT); }
+| expr "==" expr	{ emitByte(OP_EQUAL); }
 | expr '>' expr			{ emitByte(OP_GREATER); }
-| expr TOKEN_GREATER_EQUAL expr	{ emitBytes(OP_LESS, OP_NOT); } 
+| expr ">=" expr	{ emitBytes(OP_LESS, OP_NOT); } 
 | expr '<' expr			{ emitByte(OP_LESS); } 
-| expr TOKEN_LESS_EQUAL expr	{ emitBytes(OP_GREATER, OP_NOT); } 
+| expr "<=" expr	{ emitBytes(OP_GREATER, OP_NOT); } 
 | expr '+' expr			{ emitByte(OP_ADD); } 
 | expr '-' expr			{ emitByte(OP_SUBTRACT); } 
 | expr '*' expr			{ emitByte(OP_MULTIPLY); } 
 | expr '/' expr			{ emitByte(OP_DIVIDE); } 
 | '!' expr			{ emitByte(OP_NOT); } 
-| '-' expr %prec TOKEN_UMINUS	{ emitByte(OP_NEGATE); } 
+| '-' expr %prec UMINUS		{ emitByte(OP_NEGATE); } 
 | '(' expr ')'
 | call
 ; 
 
 call: primary
 | call '(' arguments ')' 
-| call '.' TOKEN_IDENTIFIER
+| call '.' IDENTIFIER
 ;
 
-primary: TOKEN_TRUE		{ emitByte(OP_TRUE); } 
-| TOKEN_FALSE			{ emitByte(OP_FALSE); }
-| TOKEN_NIL			{ emitByte(OP_NIL); } 
-| TOKEN_THIS 
-| TOKEN_NUMBER			{ double value = strtod($1, NULL); emitConstant(NUMBER_VAL(value)); } 
-| TOKEN_STRING			{ emitConstant(OBJ_VAL(copyString($1, strlen($1)))); }	
-| TOKEN_IDENTIFIER 
-| TOKEN_SUPER '.' TOKEN_IDENTIFIER
+primary: "true" { emitByte(OP_TRUE); } 
+| "false" { emitByte(OP_FALSE); }
+| "nil" { emitByte(OP_NIL); } 
+| "this"
+| NUMBER			{ double value = strtod($1, NULL); emitConstant(NUMBER_VAL(value)); } 
+| STRING			{ emitConstant(OBJ_VAL(copyString($1, strlen($1)))); }	
+| IDENTIFIER 
+| "super" '.' IDENTIFIER
 ;
 
-function: TOKEN_IDENTIFIER '(' parameters ')' block
-| TOKEN_IDENTIFIER
+function: IDENTIFIER '(' parameters ')' block
+| IDENTIFIER
 ;
 
 parameters: 
 %empty
-| TOKEN_IDENTIFIER
-| parameters ',' TOKEN_IDENTIFIER
+| IDENTIFIER
+| parameters ',' IDENTIFIER
 ;
 
 arguments:
