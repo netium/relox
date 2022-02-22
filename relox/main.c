@@ -5,11 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "parser.h"
 #include "common.h"
 #include "chunk.h"
 #include "debug.h"
 #include "vm.h"
+#include "lexer.h"
 
 // Temporarily turn off using fopen_s() instead of fopen() warning 
 #pragma warning(disable : 4996)
@@ -24,7 +24,9 @@ static void repl() {
             break;
         }
 
+        YY_BUFFER_STATE buf = yy_scan_string(line);
         interpret(line);
+        yy_delete_buffer(buf);
     }
 }
 
@@ -61,7 +63,9 @@ static char* readFile(const char* path) {
 
 static void runFile(const char* path) {
     char* source = readFile(path);
+    YY_BUFFER_STATE buf = yy_scan_string(source);
     InterpretResult result = interpret(source);
+    yy_delete_buffer(buf);
     free(source);
 
     if (result == INTERPRET_COMPILE_ERROR) exit(65);
@@ -72,9 +76,6 @@ int main(int argc, char *argv[])
 {
     initVM();
 
-    yyparse();
-
-    /*
     if (argc == 1) {
         repl();
     }
@@ -85,7 +86,6 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Usage: clox [path]\n");
         exit(64);
     }
-    */
 
     freeVM();
     return 0;

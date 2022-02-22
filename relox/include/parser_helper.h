@@ -3,7 +3,7 @@
 
 #include "common.h"
 #include "memory.h"
-
+#include "scanner.h"
 #include "compiler.h"
 
 // #include "scanner.h"
@@ -161,6 +161,11 @@ void declaration();
 void statement();
 ObjFunction *compile(const char* source);
 void markCompilerRoots();
+
+extern Parser parser;
+extern Compiler* current ;
+extern ClassCompiler* currentClass;
+extern Chunk* compilingChunk;
 
 int yylex (void);
 

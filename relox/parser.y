@@ -61,7 +61,8 @@
 
 %%
 
-program: declarations ;
+program: declarations 
+;
 
 declaration: classDecl
 | funDecl
@@ -192,7 +193,7 @@ primary: "true" { emitByte(OP_TRUE); }
 | "false" { emitByte(OP_FALSE); }
 | "nil" { emitByte(OP_NIL); } 
 | "this"
-| NUMBER[number]			{ emitConstant(NUMBER_VAL($number); } 
+| NUMBER[number]			{ emitConstant(NUMBER_VAL($number)); } 
 | STRING[string]			{ emitConstant(OBJ_VAL(copyString($string, strlen($string)))); }	
 | IDENTIFIER[id]
 | "super" '.' IDENTIFIER[id]

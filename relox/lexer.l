@@ -44,7 +44,7 @@
 "+"	{ printf("PLUS\n"); return yytext[0]; }
 "-"	{ printf("MINUS\n"); return yytext[0]; }
 \/\/[^\n]*/\n	{ printf("COMMENT %s", yytext); }
-\"([^"]|(\\\.))*\"	{ printf("STRING %s", yytext); strcpy(yylval.literal, yytext); return TOKEN_STRING; }
+\"([^"]|(\\\.))*\"	{ printf("STRING %s", yytext); strcpy(yylval.literal, yytext + 1); return TOKEN_STRING; }
 [ \t\r]	{}
 \n	{ yylineno++; }
 .	{ printf("ERROR %s \n", yytext); }
