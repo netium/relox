@@ -83,15 +83,15 @@ ClassCompiler* currentClass = NULL;
 Chunk* compilingChunk;
 
 void parsePrecedence(Precedence precedence);
-uint8_t identifierConstant(Token* name);
+uint8_t identifierConstant(const char* name);
 void expression();
 void statement();
 void declaration();
 ParseRule* getRule(TokenType type);
 void and_(bool canAssign);
 uint8_t argumentList();
-int resolveUpvalue(Compiler* compiler, Token* name);
-int resolveLocal(Compiler* compiler, Token* name);
+int resolveUpvalue(Compiler* compiler, const char* name);
+int resolveLocal(Compiler* compiler,const char* name);
 
 Chunk* currentChunk() {
 	return &current->function->chunk;
@@ -425,7 +425,7 @@ bool identifiersEqual(const char * a, const char * b) {
 int resolveLocal(Compiler* compiler, const char* name) {
 	for (int i = compiler->localCount - 1; i >= 0; i--) {
 		Local* local = &compiler->locals[i];
-		if (identifiersEqual(name, &local->name)) {
+		if (identifiersEqual(name, local->name)) {
 			if (local->depth == -1) {
 				error("Cannot read local variable in its own initializer.");
 			}
@@ -481,10 +481,8 @@ void addLocal(const char* name) {
 	local->depth = current->scopeDepth;
 }
 
-void declareVariable() {
+void declareVariable(const char * name) {
 	if (current->scopeDepth == 0) return;
-
-	Token* name = &parser.previous;
 
 	for (int i = current->localCount - 1; i >= 0; i--) {
 		Local* local = &current->locals[i];

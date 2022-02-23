@@ -1,6 +1,6 @@
 %option noyywrap nodefault yylineno
 
-%code {
+%{
 #include <stdio.h>
 
 #include "scanner.h"

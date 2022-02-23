@@ -73,7 +73,7 @@ declaration: classDecl
 classDecl: "class" IDENTIFIER 
 {
 	uint8_t nameConstant = identifierConstant(&parser.previous);
-	declareVariable();
+	declareVariable($IDENTIFIER);
 
 	emitBytes(OP_CLASS, nameConstant);
 	defineVariable(nameConstant);
@@ -84,7 +84,10 @@ classDecl: "class" IDENTIFIER
 	currentClass = &classCompiler;
 } '{' 
 {
-	beginScope(); 
+	beginScope();
+	addLocal(syntheticToken("super"));
+	defineVaraible(0);
+	namedVariable(className, false);
 } 
 functions '}'
 {
@@ -96,7 +99,7 @@ functions '}'
 }
 | "class" IDENTIFIER {
 	uint8_t nameConstant = identifierConstant(&parser.previous);
-	declareVariable();
+	declareVariable($IDENTIFIER);
 
 	emitBytes(OP_CLASS, nameConstant);
 	defineVariable(nameConstant);
@@ -106,9 +109,21 @@ functions '}'
 	classCompiler.enclosing = currentClass;
 	currentClass = &classCompiler;
 } 
-':' IDENTIFIER '{'
+':' IDENTIFIER {
+	variable(false);
+	if (identifierEqual(className, &parser.previous)) {
+		error("A class cannot inherit from itself.");
+	}
+
+	namedVariable(className, false);
+	emitByte(OP_INHERIT);
+	classCompiler.hasSuperclass = true;
+} '{'
 {	
 	beginScope();
+	addLocal(syntheticToken("super"));
+	defineVaraible(0);
+	namedVariable(className, false);
 } 
 functions '}'
 {
