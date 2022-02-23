@@ -43,7 +43,7 @@ typedef enum {
 } FunctionType;
 
 typedef struct {
-	Token name;
+	char name[256];
 	int depth;
 	bool isCaptured;
 } Local;
@@ -284,7 +284,7 @@ void dot(bool canAssign) {
 	consume(TOKEN_IDENTIFIER, "Expect property name after '.'.");
 	uint8_t name = identifierConstant(&parser.previous);
 
-	if (canAssign && match(TOKEN_EQUAL)) {
+	if (canAssign && match('=')) {
 		expression();
 		emitBytes(OP_SET_PROPERTY, name);
 	}
@@ -296,17 +296,6 @@ void dot(bool canAssign) {
 	else {
 		emitBytes(OP_GET_PROPERTY, name);
 	}
-}
-
-void or_(bool canAssign) {
-	int elseJump = emitJump(OP_JUMP_IF_FALSE);
-	int endJump = emitJump(OP_JUMP);
-
-	patchJump(elseJump);
-	emitByte(OP_POP);
-
-	parsePrecedence(PREC_OR);
-	patchJump(endJump);
 }
 
 void namedVariable(Token name, bool canAssign) {
@@ -325,7 +314,7 @@ void namedVariable(Token name, bool canAssign) {
 		getOp = OP_GET_GLOBAL;
 		setOp = OP_SET_GLOBAL;
 	}
-	if (canAssign && match(TOKEN_EQUAL)) {
+	if (canAssign && match('=')) {
 		expression();
 		emitBytes(setOp, (uint8_t)arg);
 	}
@@ -385,27 +374,17 @@ ParseRule rules[] = {
 	[TOKEN_COMMA] = {NULL, NULL, PREC_NONE},
 	[TOKEN_DOT] = {NULL, dot, PREC_CALL},
 	[TOKEN_SEMICOLON] = {NULL, NULL, PREC_NONE},
-	[TOKEN_SLASH] = {NULL, binary, PREC_FACTOR},
-	[TOKEN_STAR] = {NULL, binary, PREC_FACTOR},
-	[TOKEN_BANG_EQUAL] = {NULL, binary, PREC_EQUALITY},
-	[TOKEN_EQUAL_EQUAL] = {NULL, binary, PREC_EQUALITY},
-	[TOKEN_GREATER_EQUAL] = {NULL, binary, PREC_COMPARISON},
-	[TOKEN_LESS] = {NULL, binary, PREC_COMPARISON},
-	[TOKEN_LESS_EQUAL] = {NULL, binary, PREC_COMPARISON},
 	[TOKEN_IDENTIFIER] = {variable, NULL, PREC_NONE},
-	[TOKEN_AND] = {NULL, and_, PREC_AND},
 	[TOKEN_CLASS] = {NULL, NULL, PREC_NONE},
 	[TOKEN_ELSE] = {NULL, NULL, PREC_NONE},
 	[TOKEN_FALSE] = {NULL, NULL, PREC_NONE},
 	[TOKEN_FOR] = {NULL, NULL, PREC_NONE},
 	[TOKEN_FUN] = {NULL, NULL, PREC_NONE},
 	[TOKEN_IF] = {NULL, NULL, PREC_NONE},
-	[TOKEN_OR] = {NULL, or_, PREC_OR},
 	[TOKEN_PRINT] = {NULL, NULL, PREC_NONE},
 	[TOKEN_RETURN] = {NULL, NULL, PREC_NONE},
 	[TOKEN_SUPER] = {super_, NULL, PREC_NONE},
 	[TOKEN_THIS] = {this_, NULL, PREC_NONE},
-	[TOKEN_TRUE] = {literal, NULL, PREC_NONE},
 	[TOKEN_TRUE] = {NULL, NULL, PREC_NONE},
 	[TOKEN_VAR] = {NULL, NULL, PREC_NONE},
 	[TOKEN_WHILE] = {NULL, NULL, PREC_NONE},
@@ -430,21 +409,20 @@ void parsePrecedence(Precedence precedence) {
 		ParseFn infixRule = getRule(parser.previous.type)->infix;
 		infixRule(canAssign);
 	}
-	if (canAssign && match(TOKEN_EQUAL)) {
+	if (canAssign && match('=')) {
 		error("Invalid assignment target.");
 	}
 }
 
-uint8_t identifierConstant(Token* name) {
-	return makeConstant(OBJ_VAL(copyString(name->start, name->length)));
+uint8_t identifierConstant(const char * name) {
+	return makeConstant(OBJ_VAL(copyString(name, strlen(name))));
 }
 
-bool identifiersEqual(Token* a, Token* b) {
-	if (a->length != b->length) return false;
-	return memcmp(a->start, b->start, a->length) == 0;
+bool identifiersEqual(const char * a, const char * b) {
+	return strcmp(a, b) == 0;
 }
 
-int resolveLocal(Compiler* compiler, Token* name) {
+int resolveLocal(Compiler* compiler, const char* name) {
 	for (int i = compiler->localCount - 1; i >= 0; i--) {
 		Local* local = &compiler->locals[i];
 		if (identifiersEqual(name, &local->name)) {
@@ -475,7 +453,7 @@ int addUpvalue(Compiler* compiler, uint8_t index, bool isLocal) {
 	return compiler->function->upvalueCount++;
 }
 
-int resolveUpvalue(Compiler* compiler, Token* name) {
+int resolveUpvalue(Compiler* compiler, const char* name) {
 	if (compiler->enclosing == NULL) return -1;
 
 	int local = resolveLocal(compiler->enclosing, name);
@@ -491,13 +469,13 @@ int resolveUpvalue(Compiler* compiler, Token* name) {
 	return -1;
 }
 
-void addLocal(Token name) {
+void addLocal(const char* name) {
 	if (current->localCount == UINT8_COUNT) {
 		error("Too many local variables in function.");
 		return;
 	}
 	Local* local = &current->locals[current->localCount++];
-	local->name = name;
+	strcpy(local->name, name);
 	local->depth = -1;
 	local->isCaptured = false;
 	local->depth = current->scopeDepth;
@@ -560,29 +538,12 @@ uint8_t argumentList() {
 	return argCount;
 }
 
-void and_(bool canAssign) {
-	int endJump = emitJump(OP_JUMP_IF_FALSE);
-
-	emitByte(OP_POP);
-	parsePrecedence(PREC_AND);
-
-	patchJump(endJump);
-}
-
 ParseRule* getRule(TokenType type) {
 	return &rules[type];
 }
 
 void expression() {
 	parsePrecedence(PREC_ASSIGNMENT);
-}
-
-void block() {
-	while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
-		declaration();
-	}
-
-	consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
 }
 
 void function(FunctionType type) {
@@ -677,7 +638,7 @@ void funDeclaration() {
 void varDeclaration() {
 	uint8_t global = parseVariable("Expect variable name.");
 
-	if (match(TOKEN_EQUAL)) {
+	if (match('=')) {
 		expression();
 	}
 	else {

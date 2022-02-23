@@ -70,8 +70,54 @@ declaration: classDecl
 | statement
 ;
 
-classDecl: "class" IDENTIFIER '{' functions '}'	
-| "class" IDENTIFIER ':' IDENTIFIER '{' functions '}'
+classDecl: "class" IDENTIFIER 
+{
+	uint8_t nameConstant = identifierConstant(&parser.previous);
+	declareVariable();
+
+	emitBytes(OP_CLASS, nameConstant);
+	defineVariable(nameConstant);
+
+	ClassCompiler classCompiler;
+	classCompiler.hasSuperclass = false;
+	classCompiler.enclosing = currentClass;
+	currentClass = &classCompiler;
+} '{' 
+{
+	beginScope(); 
+} 
+functions '}'
+{
+	emiteByte(OP_POP);
+	if (classCompiler.hasSuperclass) {
+		endScope();
+	}
+	currentClass = currentClass->enclosing;
+}
+| "class" IDENTIFIER {
+	uint8_t nameConstant = identifierConstant(&parser.previous);
+	declareVariable();
+
+	emitBytes(OP_CLASS, nameConstant);
+	defineVariable(nameConstant);
+
+	ClassCompiler classCompiler;
+	classCompiler.hasSuperclass = false;
+	classCompiler.enclosing = currentClass;
+	currentClass = &classCompiler;
+} 
+':' IDENTIFIER '{'
+{	
+	beginScope();
+} 
+functions '}'
+{
+	emiteByte(OP_POP);
+	if (classCompiler.hasSuperclass) {
+		endScope();
+	}
+	currentClass = currentClass->enclosing;
+}
 ;
 
 functions: 
@@ -166,8 +212,20 @@ call '.' IDENTIFIER '=' assignment
 ;
 
 expr: 
-expr "||" expr		{}
-| expr "&&" expr	{}
+expr "||" <code_offset>{
+	int elseJump = emitJump(OP_JUMP_IF_FALSE);
+	int endJump = emitJump(OP_JUMP);
+	patchJump(elseJump);
+	emitByte(OP_POP);
+	$endJump = endJump;
+}[endJump] expr		{ patchJump($endJump); }
+| expr "&&" <code_offset>{
+	int endJump = emitJump(OP_JUMP_IF_FALSE);
+
+	emitByte(OP_POP);
+
+	$endJump = endJump;
+}[endJump] expr	{ patchJump($endJump); }
 | expr "!=" expr	{ emitBytes(OP_EQUAL, OP_NOT); }
 | expr "==" expr	{ emitByte(OP_EQUAL); }
 | expr '>' expr			{ emitByte(OP_GREATER); }

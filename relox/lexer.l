@@ -1,8 +1,13 @@
 %option noyywrap nodefault yylineno
 
-%{
+%code {
 #include <stdio.h>
+
+#include "scanner.h"
 #include "parser.h"
+
+static Token makeToken(int tokenType);
+
 %}
 
 %%
@@ -51,3 +56,11 @@
 
 %%
 
+static Token makeToken(int tokenType) {
+	Token token;
+	token.type = type;
+	strcpy(token.start, yytext);
+	token.length = strlen(token.start);
+	token.line = yylineno;
+	return token;
+}
