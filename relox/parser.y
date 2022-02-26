@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #include "common.h"
 #include "memory.h"
@@ -12,15 +13,25 @@
 #endif
 
 #include "parser_helper.h"
+
 }
 
 %union {
+	unsigned char var_index;
+	int is_lval;
+	int argc;
 	int code_offset; 
 	double number;
 	char literal[256];
 }
 
 %define api.token.prefix {TOKEN_}
+
+%nterm <argc> arguments
+%nterm <argc> argument
+%nterm <code_offset> forCondExpr
+%nterm <is_lval> primary
+%nterm <is_lval> call
 
 %token BANG_EQUAL "!=" 
 %token EQUAL_EQUAL "=="
@@ -70,10 +81,10 @@ declaration: classDecl
 | statement
 ;
 
-classDecl: "class" IDENTIFIER 
+classDecl: "class" IDENTIFIER[id]
 {
 	uint8_t nameConstant = identifierConstant(&parser.previous);
-	declareVariable($IDENTIFIER);
+	declareVariable($id);
 
 	emitBytes(OP_CLASS, nameConstant);
 	defineVariable(nameConstant);
@@ -86,20 +97,20 @@ classDecl: "class" IDENTIFIER
 {
 	beginScope();
 	addLocal(syntheticToken("super"));
-	defineVaraible(0);
-	namedVariable(className, false);
+	defineVariable(0);
+	namedVariable($id, false);
 } 
-functions '}'
+methods '}'
 {
-	emiteByte(OP_POP);
+	emitByte(OP_POP);
 	if (classCompiler.hasSuperclass) {
 		endScope();
 	}
 	currentClass = currentClass->enclosing;
 }
-| "class" IDENTIFIER {
+| "class" IDENTIFIER[classId] {
 	uint8_t nameConstant = identifierConstant(&parser.previous);
-	declareVariable($IDENTIFIER);
+	declareVariable($classId);
 
 	emitBytes(OP_CLASS, nameConstant);
 	defineVariable(nameConstant);
@@ -109,25 +120,25 @@ functions '}'
 	classCompiler.enclosing = currentClass;
 	currentClass = &classCompiler;
 } 
-':' IDENTIFIER {
+':' IDENTIFIER[id] {
 	variable(false);
-	if (identifierEqual(className, &parser.previous)) {
+	if (identifierEqual($classId, $id)) {
 		error("A class cannot inherit from itself.");
 	}
 
-	namedVariable(className, false);
+	namedVariable($classId, false);
 	emitByte(OP_INHERIT);
 	classCompiler.hasSuperclass = true;
 } '{'
 {	
 	beginScope();
 	addLocal(syntheticToken("super"));
-	defineVaraible(0);
+	defineVariable(0);
 	namedVariable(className, false);
 } 
-functions '}'
+methods '}'
 {
-	emiteByte(OP_POP);
+	emitByte(OP_POP);
 	if (classCompiler.hasSuperclass) {
 		endScope();
 	}
@@ -135,15 +146,50 @@ functions '}'
 }
 ;
 
+methods: methodDecl
+| methods methodDecl
+;
+
+methodDecl: IDENTIFIER[id] <var_index> {
+	$constant = identifierConstant($id);
+	FunctionType type = strcmp($id, "init")? TYPE_INITIALIZER : TYPE_METHOD;
+	Compiler compiler;
+	initCompiler(&compiler, type);
+	beginScope();
+
+ }[constant] '(' parameters ')' {
+	 if (current->function->arity > 255) {
+		 errorAtCurrent("Cannot have more than 255 parameters.");
+	 }
+ } block {
+	 ObjFunction * function = endCompiler();
+	 emitBytes(OP_CLOSURE, makeConstant(OBJ_VAL(function)));
+	 for (int i = 0; i < function->upvalueCount; i++) {
+		 emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
+		 emitByte(compiler.upvalues[i].index);
+	 }
+
+	emitBytes(OP_METHOD, $constant);
+ }
+;
+
 functions: 
 %empty
-| funDecl functions
+| functions funDecl
 ;
 
 funDecl: "func" function;
 
-varDecl: "var" IDENTIFIER ';'
-| "var" IDENTIFIER '=' expression ';'
+varDecl: "var" IDENTIFIER[id] <var_index> {
+	$global = parseVariable($id);
+}[global] varInit ';' {
+	defineVariable($global);
+}
+;
+
+varInit:
+%empty { emitByte(OP_NIL); }
+| expression
 ;
 
 statement: exprStmt
@@ -158,16 +204,28 @@ statement: exprStmt
 exprStmt: expression ';' { emitByte(OP_POP); }
 ;
 
-forStmt: "for" '(' forInit forCondExpr ';' forIterExpr ')' statement;
+forStmt: "for" { beginScope(); } '(' forInit <code_offset>{
+	$loopStart = currentChunk()->count;
+}[loopStart]
+forCondExpr[exitJump] ';' forIterExpr ')' statement {
+	emitLoop($loopStart);
+
+	if ($exitJump != -1) {
+		patchJump($exitJump);
+		emitByte(OP_POP);
+	}
+
+	endScope();
+};
 
 forInit: varDecl
 | exprStmt
 | ';'
 ;
 
-forCondExpr: 
-%empty
-| expression
+forCondExpr[exitJump]: 
+%empty { $exitJump = -1; }
+| expression { $exitJump = emitJump(OP_JUMP_IF_FALSE); emitByte(OP_POP); }
 ;
 
 forIterExpr:
@@ -176,8 +234,22 @@ forIterExpr:
 ;
 
 ifStmt: 
-"if" '(' expression ')' statement
-|"if" '(' expression ')' statement "else" statement 
+"if" '(' expression ')' <code_offset>{
+	int thenJump = emitJump(OP_JUMP_IF_FALSE);
+	emitByte(OP_POP);
+	$$ = thenJump;
+}[thenJump] statement <code_offset> {
+	int elseJump = emitJump(OP_JUMP);
+	patchJump($thenJump);
+	emitByte(OP_POP);
+	$$ = elseJump;
+}[elseJump] elseClause {
+	patchJump($elseJump);
+};
+
+elseClause:
+%empty
+| "else" statement
 ;
 
 printStmt: "print" expression ';' { emitByte(OP_PRINT); }
@@ -221,8 +293,11 @@ declarations:
 expression: assignment;
 
 assignment:
-call '.' IDENTIFIER '=' assignment
-| IDENTIFIER '=' assignment 
+call {
+	if (!$call) error("Cannot assign");
+} '=' assignment {
+
+}
 | expr 
 ;
 
@@ -257,37 +332,58 @@ expr "||" <code_offset>{
 | call
 ; 
 
-call: primary
-| call '(' arguments ')' 
-| call '.' IDENTIFIER
+call: primary { $$ = $primary; }
+| call '(' arguments ')' { uint8_t argCount = $arguments; emitBytes(OP_INVOKE, name); emitByte(argCount); $$ = 0; } 
+| call '.' IDENTIFIER { $$ = 1; }
 ;
 
-primary: "true" { emitByte(OP_TRUE); } 
-| "false" { emitByte(OP_FALSE); }
-| "nil" { emitByte(OP_NIL); } 
-| "this"
-| NUMBER[number]			{ emitConstant(NUMBER_VAL($number)); } 
-| STRING[string]			{ emitConstant(OBJ_VAL(copyString($string, strlen($string)))); }	
-| IDENTIFIER[id]
-| "super" '.' IDENTIFIER[id]
+primary: "true" { emitByte(OP_TRUE); $$ = 0; } 
+| "false" { emitByte(OP_FALSE); $$ = 0; }
+| "nil" { emitByte(OP_NIL); $$ = 0; } 
+| "this" { $$ = 0; }
+| NUMBER[number]			{ emitConstant(NUMBER_VAL($number)); $$ = 0; } 
+| STRING[string]			{ emitConstant(OBJ_VAL(copyString($string, strlen($string)))); $$ = 0; }	
+| IDENTIFIER[id]			{ $$ = 1; }
+| "super" { $$ = 0; }
 ;
 
-function: IDENTIFIER '(' parameters ')' block
-| IDENTIFIER
+function: IDENTIFIER[id] <var_index> {
+	$global = parseVariable($id);
+	markInitialized();
+	Compiler compiler;
+	initCompiler(&compiler, TYPE_FUNCTION);
+	beginScope();
+ }[global] '(' parameters ')' {
+	 if (current->function->arity > 255) {
+		 errorAtCurrent("Cannot have more than 255 parameters.");
+	 }
+ } block {
+	 ObjFunction* function = endCompiler();
+	 emitBytes(OP_CLOSURE, makeConstant(OBJ_VAL(function)));
+	 for (int i = 0; i < function->upvalueCount; i++) {
+		 emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
+		 emitByte(compiler.upvalues[i].index);
+	 }
+	defineVariable($global);
+ }
 ;
 
 parameters: 
 %empty
-| IDENTIFIER
-| parameters ',' IDENTIFIER
+| IDENTIFIER[id] { uint8_t constant = parseVariable($id); defineVariable(constant); }
+| parameters ',' IDENTIFIER[id] { uint8_t constant = parseVariable($id); defineVariable(constant); }
 ;
 
 arguments:
-%empty
-| expression
-| arguments ',' expression
+%empty { $arguments = 0; }
+| argument { $arguments = $argument; }
+| arguments ',' argument { $$ = $1 + $argument; }
 ;
 
+
+argument:
+expression { $argument = 1; }
+;
 
 %%
 

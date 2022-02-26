@@ -232,12 +232,10 @@ void initCompiler(Compiler* compiler, FunctionType type) {
 	local->depth = 0;
 	local->isCaptured = false;
 	if (type != TYPE_FUNCTION) {
-		local->name.start = "this";
-		local->name.length = 4;
+		strcpy(local->name, "this");
 	}
 	else {
-		local->name.start = "";
-		local->name.length = 0;
+		local->name[0] = 0;
 	}
 }
 
@@ -298,19 +296,19 @@ void dot(bool canAssign) {
 	}
 }
 
-void namedVariable(Token name, bool canAssign) {
+void namedVariable(const char* name, bool canAssign) {
 	uint8_t getOp, setOp;
-	int arg = resolveLocal(current, &name);
+	int arg = resolveLocal(current, name);
 	if (arg != -1) {
 		getOp = OP_GET_LOCAL;
 		setOp = OP_SET_LOCAL;
 	}
-	else if((arg = resolveUpvalue(current, &name)) != -1) {
+	else if((arg = resolveUpvalue(current, name)) != -1) {
 		getOp = OP_GET_UPVALUE;
 		setOp = OP_SET_UPVALUE;
 	}
 	else {
-		arg = identifierConstant(&name);
+		arg = identifierConstant(name);
 		getOp = OP_GET_GLOBAL;
 		setOp = OP_SET_GLOBAL;
 	}
@@ -324,15 +322,8 @@ void namedVariable(Token name, bool canAssign) {
 	emitBytes(OP_GET_GLOBAL, arg);
 }
 
-void variable(bool canAssign) {
-	namedVariable(parser.previous, canAssign);
-}
-
-Token syntheticToken(const char* text) {
-	Token token;
-	token.start = text;
-	token.length = (int)strlen(text);
-	return token;
+const char* syntheticToken(const char* text) {
+	return text;
 }
 
 void super_(bool canAssign) {
@@ -374,7 +365,6 @@ ParseRule rules[] = {
 	[TOKEN_COMMA] = {NULL, NULL, PREC_NONE},
 	[TOKEN_DOT] = {NULL, dot, PREC_CALL},
 	[TOKEN_SEMICOLON] = {NULL, NULL, PREC_NONE},
-	[TOKEN_IDENTIFIER] = {variable, NULL, PREC_NONE},
 	[TOKEN_CLASS] = {NULL, NULL, PREC_NONE},
 	[TOKEN_ELSE] = {NULL, NULL, PREC_NONE},
 	[TOKEN_FALSE] = {NULL, NULL, PREC_NONE},
@@ -490,19 +480,18 @@ void declareVariable(const char * name) {
 			break;
 		}
 
-		if (identifiersEqual(name, &local->name)) {
+		if (identifiersEqual(name, local->name)) {
 			error("Already a variable with this name in this scope.");
 		}
 	}
 
-	addLocal(*name);
+	addLocal(name);
 }
 
-uint8_t parseVariable(const char* errorMessage) {
-	consume(TOKEN_IDENTIFIER, errorMessage);
-	declareVariable();
+uint8_t parseVariable(const char* var) {
+	declareVariable(var);
 	if (current->scopeDepth > 0) return 0;
-	return identifierConstant(&parser.previous);
+	return identifierConstant(var);
 }
 
 void markInitialized() {
@@ -518,22 +507,6 @@ void defineVariable(uint8_t global) {
 	}
 
 	emitBytes(OP_DEFINE_GLOBAL, global);
-}
-
-uint8_t argumentList() {
-	uint8_t argCount = 0;
-	if (!check(TOKEN_RIGHT_PAREN)) {
-		do {
-			expression();
-			if (argCount == 255) {
-				error("cannot have more than 255 arguments.");
-			}
-			argCount++;
-		} while (match(TOKEN_COMMA));
-	}
-
-	consume(TOKEN_RIGHT_PAREN, "Expect ')' after arguments.");
-	return argCount;
 }
 
 ParseRule* getRule(TokenType type) {
@@ -569,87 +542,6 @@ void function(FunctionType type) {
 		emitByte(compiler.upvalues[i].isLocal ? 1 : 0);
 		emitByte(compiler.upvalues[i].index);
 	}
-}
-
-void method() {
-	consume(TOKEN_IDENTIFIER, "Expect method name.");
-	uint8_t constant = identifierConstant(&parser.previous);
-	FunctionType type = TYPE_METHOD;
-	if (parser.previous.length == 4 && memcmp(parser.previous.start, "init", 4) == 0) {
-		type = TYPE_INITIALIZER;
-	}
-
-	function(type);
-	emitBytes(OP_METHOD, constant);
-}
-
-void classDeclaration() {
-	consume(TOKEN_IDENTIFIER, "Expect class name.");
-	Token className = parser.previous;
-	uint8_t nameConstant = identifierConstant(&parser.previous);
-	declareVariable();
-
-	emitBytes(OP_CLASS, nameConstant);
-	defineVariable(nameConstant);
-
-	ClassCompiler classCompiler;
-	classCompiler.hasSuperclass = false;
-	classCompiler.enclosing = currentClass;
-	currentClass = &classCompiler;
-
-	if (match(TOKEN_LESS)) {
-		consume(TOKEN_IDENTIFIER, "Expect superclass name.");
-		variable(false);
-		if (identifiersEqual(&className, &parser.previous)) {
-			error("A class cannot inherit from itself.");
-		}
-
-		namedVariable(className, false);
-		emitByte(OP_INHERIT);
-		classCompiler.hasSuperclass = true;
-	}
-
-	beginScope();
-	addLocal(syntheticToken("super"));
-	defineVariable(0);
-
-	namedVariable(className, false);
-	consume(TOKEN_LEFT_BRACE, "Expect '{' before class body.");
-	while (!check(TOKEN_RIGHT_BRACE) && !check(TOKEN_EOF)) {
-		method();
-	}
-	consume(TOKEN_RIGHT_BRACE, "Expect '}' after class body.");
-	emitByte(OP_POP);
-	if (classCompiler.hasSuperclass) {
-		endScope();
-	}
-	currentClass = currentClass->enclosing;
-}
-
-void funDeclaration() {
-	uint8_t global = parseVariable("Expect funciton name.");
-	markInitialized();
-	function(TYPE_FUNCTION);
-	defineVariable(global);
-}
-
-void varDeclaration() {
-	uint8_t global = parseVariable("Expect variable name.");
-
-	if (match('=')) {
-		expression();
-	}
-	else {
-		emitByte(OP_NIL);
-	}
-	consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
-	defineVariable(global);
-}
-
-void expressionStatement() {
-	expression();
-	consume(TOKEN_SEMICOLON, "Expect ';' after expression");
-	emitByte(OP_POP);
 }
 
 void forStatement() {
@@ -697,23 +589,6 @@ void forStatement() {
 	endScope();
 }
 
-void ifStatement() {
-	consume(TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
-	expression();
-	consume(TOKEN_RIGHT_PAREN, "Expect ')' after condition.");
-
-	int thenJump = emitJump(OP_JUMP_IF_FALSE);
-	emitByte(OP_POP);
-	statement();
-
-	int elseJump = emitJump(OP_JUMP);
-
-	patchJump(thenJump);
-	emitByte(OP_POP);
-	if (match(TOKEN_ELSE)) statement();
-	patchJump(elseJump);
-}
-
 void synchronize() {
 	parser.panicMode = false;
 
@@ -733,48 +608,6 @@ void synchronize() {
 			;
 		}
 		advance();
-	}
-}
-
-void declaration() {
-	if (match(TOKEN_CLASS)) {
-		classDeclaration();
-	}
-	if (match(TOKEN_FUN)) {
-		funDeclaration();
-	}
-	if (match(TOKEN_VAR)) {
-		varDeclaration();
-	}
-	else {
-		statement();
-	}
-	if (parser.panicMode) synchronize();
-}
-
-void statement() {
-	if (match(TOKEN_PRINT)) {
-		printStatement();
-	}
-	else if (match(TOKEN_FOR)) {
-		forStatement();
-	}
-	else if (match(TOKEN_IF)) {
-		ifStatement();
-	}
-	else if (match(TOKEN_RETURN)) {
-		returnStatement();
-	}
-	else if (match(TOKEN_WHILE)) {
-		whileStatement();
-	}
-	else if (match(TOKEN_LEFT_BRACE)) {
-		beginScope();
-		block();
-		endScope();
-	}
-	else {
-		expressionStatement();
 	}
 }
 

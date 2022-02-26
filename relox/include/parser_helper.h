@@ -126,7 +126,7 @@ void parsePrecedence(Precedence precedence);
 void call(bool canAssign);
 void dot(bool canAssign);
 void or_(bool canAssign);
-void namedVariable(Token name, bool canAssign);
+void namedVariable(const char *name, bool canAssign);
 void variable(bool canAssign);
 Token syntheticToken(const char* text);
 void super_(bool canAssign);
