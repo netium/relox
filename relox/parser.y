@@ -1,24 +1,33 @@
 
 %code {
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-
-#include "common.h"
-#include "memory.h"
 
 #ifdef DEBUG_PRINT_CODE
 #include "debug.h"
 #endif
 
+}
+
+%code requires {
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "common.h"
+#include "memory.h"
 #include "parser_helper.h"
 
+typedef enum {
+	VA_NONE = 0,
+	VA_LVAL = 1 << 0,
+	VA_PROPERTY = 1 << 1
+} val_attr_enum;
 }
 
 %union {
 	unsigned char var_index;
-	int is_lval;
+	val_attr_enum val_attr;
 	int argc;
 	int code_offset; 
 	double number;
@@ -30,8 +39,8 @@
 %nterm <argc> arguments
 %nterm <argc> argument
 %nterm <code_offset> forCondExpr
-%nterm <is_lval> primary
-%nterm <is_lval> call
+%nterm <val_attr> primary
+%nterm <val_attr> call
 
 %token BANG_EQUAL "!=" 
 %token EQUAL_EQUAL "=="
@@ -333,17 +342,17 @@ expr "||" <code_offset>{
 ; 
 
 call: primary { $$ = $primary; }
-| call '(' arguments ')' { uint8_t argCount = $arguments; emitBytes(OP_INVOKE, name); emitByte(argCount); $$ = 0; } 
-| call '.' IDENTIFIER { $$ = 1; }
+| call '(' arguments ')' { uint8_t argCount = $arguments; emitBytes(OP_INVOKE, name); emitByte(argCount); $$ = VA_NONE; } 
+| call '.' IDENTIFIER { $$ = VA_PROPERTY | VA_LVAL; }
 ;
 
 primary: "true" { emitByte(OP_TRUE); $$ = 0; } 
 | "false" { emitByte(OP_FALSE); $$ = 0; }
 | "nil" { emitByte(OP_NIL); $$ = 0; } 
 | "this" { $$ = 0; }
-| NUMBER[number]			{ emitConstant(NUMBER_VAL($number)); $$ = 0; } 
-| STRING[string]			{ emitConstant(OBJ_VAL(copyString($string, strlen($string)))); $$ = 0; }	
-| IDENTIFIER[id]			{ $$ = 1; }
+| NUMBER[number]			{ emitConstant(NUMBER_VAL($number)); $$ = VA_NONE; } 
+| STRING[string]			{ emitConstant(OBJ_VAL(copyString($string, strlen($string)))); $$ = VA_NONE; }	
+| IDENTIFIER[id]			{ $$ = VA_LVAL; }
 | "super" { $$ = 0; }
 ;
 
